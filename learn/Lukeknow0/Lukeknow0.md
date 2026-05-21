@@ -1,6 +1,6 @@
 - 昵称：  luke不吃面
 - GitHub 用户名：  Lukeknow0
 - 微信： W0_0Worz
-- Aleo 钱包地址：  (待填写)
+- Aleo 钱包地址：  aleo15xrzy5rp2rz8xadnv8htm267k7tt3q3gmkh7nqqfva5kt02v6yyqpdnu8e
 - 技术栈：  Codex、Cursor、Hermes Agent、简单前端（HTML/CSS/JS）
 - 自我介绍： 教育AI产品经理，正在学习Web3和ZK隐私技术，对Aleo生态感兴趣，希望通过AI辅助开发快速上手。
