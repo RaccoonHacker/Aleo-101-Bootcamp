@@ -2,7 +2,7 @@
 
 | nickname | aleo_wallet | TX |
 | --- | --- | --- |
-| 陆奕丞 | aleo1lkp6q3tmpusvxsf37ar8jc9835r07pyrsl9c9qyp4supmmuvavqs2ytf9w | [交易记录](https://explorer.provable.com/transaction/at1jsf2lawu9cfeq4lxtq2jnfaajg2qlf3952w35p87kedhjh58nsgq3wmqfm?utm_source=shield) |
+| 陆奕丞 | aleo13zjkkxfv9j32vpptr8l7cquwj5rfzzpffs4ulrgpsr0xtjhcmqysw9ee3h | [交易记录](https://explorer.provable.com/transaction/at1ll8rxm8m6g2uglsp8jn3f20v92klq9g23083pccxcmn9l4t5vugsfs95hg?utm_source=shield) |
 | 0xE1337 | aleo1ntxq2hsvnh4s5rmh23z2hvdlkd5j97mrxpjutk0ze6nys7ll25zquq3zyr | [交易记录](https://explorer.provable.com/transaction/at12sdh6czhjer5nt80snvgs5skaydvev0fzprmzetsm4l67uty6gzqhqy8vm?utm_source=shield) |
 | sen | aleo130pfw9t4g9g0tj68rpg39v8e57jg08wk6dq8wejas9lj0h9egugsst047x | [交易记录](https://explorer.provable.com/transaction/at1ucmqw0wjqmd0mfcgz9ay8jm54dep6y0xmysjqyylautqzzgmqg8qzstluv?utm_source=shield) |
 | superxyl | aleo12edyx9nsxl62g68pdkrpudtruzhykpt87fs89r0an770fvmercyqtv3rs5 | [交易记录](https://explorer.provable.com/transaction/at10h5uag3qpcwp4aq9jk4ly6sduy2wy3zcqqugfk3d0s5k7vkwmq8sclxeu6?utm_source=shield) |
