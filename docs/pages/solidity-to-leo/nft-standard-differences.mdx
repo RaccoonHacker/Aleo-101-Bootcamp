@@ -263,9 +263,9 @@ fn transfer_from_public_to_private(
 | ----------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | **私有 → 私有**         | ❌ 不支持                            | `transfer_private`                                                                                       | 完全私密，链上无任何痕迹                                       |
 | **私有 → 公开**         | ❌ 不支持                            | `transfer_private_to_public`                                                                             | 所有权变为可见，数据仍在 `NFTView` 中保持私密                  |
-| **公开 → 公开**         | `transferFrom` / `safeTransferFrom` | `transfer_public`（通过 `self.caller`）<br>`transfer_public_as_signer`（通过 `self.signer`）             | 与 ERC-721 行为一致，灵活性更高                                |
-| **公开 → 私有**         | ❌ 不支持                            | `transfer_public_to_private`<br>`transfer_from_public_to_private`                                       | 所有权变为私密，资产从公开注册表中消失                         |
-| **公开（代花费者操作）** | 通过 `approve()` 的 `transferFrom`  | `transfer_from_public`<br>`transfer_from_public_to_private`                                              | 支持授权委托转移，可选公开或私有模式                           |
+| **公开 → 公开**         | `transferFrom` / `safeTransferFrom` | `transfer_public`（通过 `self.caller`）<br />`transfer_public_as_signer`（通过 `self.signer`）          | 与 ERC-721 行为一致，灵活性更高                                |
+| **公开 → 私有**         | ❌ 不支持                            | `transfer_public_to_private`<br />`transfer_from_public_to_private`                                     | 所有权变为私密，资产从公开注册表中消失                         |
+| **公开（代花费者操作）** | 通过 `approve()` 的 `transferFrom`  | `transfer_from_public`<br />`transfer_from_public_to_private`                                            | 支持授权委托转移，可选公开或私有模式                           |
 
 ### 授权系统
 
