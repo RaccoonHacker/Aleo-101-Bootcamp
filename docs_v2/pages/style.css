@@ -9,8 +9,6 @@
   width: 5rem;
   aspect-ratio: 16 / 9;
   background-color: currentColor;
-  mask: url('/aleo-logo.svg') center / contain no-repeat;
-  -webkit-mask: url('/aleo-logo.svg') center / contain no-repeat;
 }
 
 .aleo-logo-nav a {
