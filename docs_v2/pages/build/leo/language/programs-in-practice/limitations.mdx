@@ -2,6 +2,95 @@
 title: Limitations
 ---
 
-# Limitations
+# Limitations（限制）
 
-TODO: Add Leo limitations content.
+## Program Limits（程序限制）
+
+snarkVM 对 Aleo programs 施加了以下限制：
+
+- program 的最大大小为 **512 KB**，按字符数量计算。
+- mappings 的最大数量为 **31**。
+- imports 的最大数量为 **64**。
+- program name 的最大长度为 **31 bytes**，不包括 `.aleo` 后缀。
+- import depth 的最大值为 **64**。
+- call depth 的最大值为 **31**。
+- functions 的最大数量为 **31**。
+- structs 的最大数量为 **310**。
+- records 的最大数量为 **310**。
+- closures 的最大数量为 **62**。
+
+**如果你的 compiled Leo program 超过这些限制，可以考虑对程序进行模块化拆分，或者重新设计程序架构。**
+这些限制只能通过 Aleo Network Foundation 定义的 governance process（治理流程）进行正式 protocol upgrade（协议升级）来提高。
+
+## Transaction Limits（交易限制）
+
+- transaction 的最大大小为 **768 KB**。如果你的程序超过这一限制，可能是因为需要 large inputs 或生成 large outputs，此时应考虑优化 Leo code 中的数据类型。
+- 每笔 transaction 中 transitions 的最大数量为 **31**，另加 1 个预留给 fee transition，总计为 32。
+- 每个 transition 的 inputs 最大数量为 **16**。
+- 每个 transition 的 outputs 最大数量为 **16**。
+- transaction 在 onchain execution 中最多可消耗 **`4_000_000` micro-credits**。如果超过这一限制，应考虑优化 Leo code 中的 onchain components。
+- finalize block 中 write commands 的最大数量为 **32**，例如 `Mapping::set`、`Mapping::remove` 等。
+
+## Deployment Limits（部署限制）
+
+- deployment 中 variables 的最大数量为 **2,097,152**。
+- deployment 中 constraints 的最大数量为 **2,097,152**。
+
+## Data Limits（数据限制）
+
+- array 中 elements 的最大数量为 **2,048**。
+
+和前面的限制一样，这些限制也只能通过 governance process 进行修改。
+
+## Compiling Conditional Onchain Code（编译条件式链上代码）
+
+考虑下面这个 Leo entry function：
+
+```leo
+fn weird_sub(a: u8, b: u8) -> u8 {
+    if (a >= b) {
+        return a.sub_wrapped(b);
+    } else {
+        return b.sub_wrapped(a);
+    }
+}
+```
+
+它会被编译成下面的 Aleo instructions：
+
+```aleo
+function weird_sub:
+    input r0 as u8.private;
+    input r1 as u8.private;
+    gte r0 r1 into r2;
+    sub.w r0 r1 into r3;
+    sub.w r1 r0 into r4;
+    ternary r2 r3 r4 into r5;
+    output r5 as u8.private;
+```
+
+可以看到，在 entry function 中，conditional 的两个分支都会被执行。随后程序会使用 ternary instruction 选择正确的输出。
+
+这种编译方式之所以可行，是因为 transitions 中的 operations 是 purely functional（纯函数式）的。也就是说，计算结果只依赖输入，不依赖外部可变状态。
+
+但是，onchain commands 并不都是 purely functional 的。例如：
+
+- `get`
+- `get.or_use`
+- `contains`
+- `remove`
+- `set`
+
+这些命令的语义都依赖 program state（程序状态）。因此，offchain code 中使用的那种编译技巧不能直接用于 onchain code。
+
+相应地，onchain code 会使用 `branch` 和 `position` commands 进行编译。这些命令允许程序定义某些会被跳过的代码序列。
+
+不过，如果某些 instructions 被跳过，那么其中的 destination registers 不会被初始化。这样一来，后续 instructions 就不能访问这些 registers。换句话说，根据实际选择的 branch 不同，某些 registers 可能是无效的；如果程序试图访问这些无效 registers，就会导致 execution error。
+
+在 Leo 中，唯一会产生这类访问尝试的代码模式，是在 conditional statement 中尝试给 parent scope（父级作用域）中的变量赋值。因此，这类写法是不允许的。
+
+这个限制未来可以通过改进 `snarkVM` 来缓解，但相关讨论会留到以后。
+
+## Footnote（脚注）
+
+1. 有一些 operations 并不是 purely functional 的，例如 `add`，因为它可能在 overflow 时失败。

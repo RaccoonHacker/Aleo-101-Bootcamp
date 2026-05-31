@@ -4,4 +4,187 @@ title: Functions
 
 # Functions
 
-TODO: Add Leo functions content.
+## Entry Functions（入口函数）
+
+Leo 中的 entry functions（入口函数）声明在 `program {}` 块内部，形式为 `fn {name}() {}`。
+
+入口函数定义了程序的 public interface（公共接口），可以在运行 Leo 程序时直接调用，例如通过 `leo run` 调用。
+
+如果入口函数包含用于执行链上代码的 `final { }` 块，则该函数必须返回 `Final`。
+
+```leo id="fn-entry-hello"
+program hello.aleo {
+    fn foo(
+        public a: field,
+        b: field,
+    ) -> field {
+        return a + b;
+    }
+}
+```
+
+### Inputs（输入）
+
+Inputs（输入参数）使用 `{visibility} {name}: {type}` 的形式声明。
+
+输入参数必须紧跟在函数名之后，并写在圆括号中。
+
+```leo id="fn-inputs"
+// The entry function `foo` takes a single input `a` with type `field` and visibility `public`.
+fn foo(public a: field) { }
+```
+
+### Outputs（输出）
+
+函数的返回类型使用 `-> {expression}` 的形式声明，并且必须写在函数输入参数之后。
+
+函数的输出通过 `return {expression};` 计算。执行 `return` 后，函数执行结束，并且返回值的类型必须与函数签名中声明的输出类型一致。
+
+```leo id="fn-outputs"
+fn foo(public a: field) -> field {
+    // Returns the addition of the public input a and the value `1field`.
+    return a + 1field;
+}
+```
+
+## Onchain State（链上状态）
+
+### `final { }`
+
+`final { }` 块用于定义会在链上执行的计算逻辑。最常见的使用场景，是在 mappings 或 storage 中初始化或修改 public onchain state（公开链上状态）。
+
+包含链上逻辑的入口函数需要返回 `Final`，并将链上代码写入 `final { }` 块中。
+
+`final` 块具有 atomic（原子性）：要么全部成功，要么全部失败；如果执行失败，状态会被回滚。
+
+```leo id="fn-final-block"
+program transfer.aleo {
+    // The function `transfer_public_to_private` turns a specified token amount
+    // from `account` into a token record for the specified receiver.
+    //
+    // This function preserves privacy for the receiver's record, however
+    // it publicly reveals the sender and the specified token amount.
+    fn transfer_public_to_private(
+        receiver: address,
+        public amount: u64
+    ) -> (token, Final) {
+        // Produce a token record for the token receiver.
+        let new: token = token {
+            owner: receiver,
+            amount,
+        };
+
+        // Return the receiver's record, then decrement the token amount of the caller publicly.
+        return (new, final {
+            // Decrements `account[sender]` by `amount`.
+            // If `account[sender]` does not exist, it will be created.
+            // If `account[sender] - amount` underflows, `transfer_public_to_private` is reverted.
+            let current_amount: u64 = Mapping::get_or_use(account, self.caller, 0u64);
+            Mapping::set(account, self.caller, current_amount - amount);
+        });
+    }
+}
+```
+
+如果不需要创建或修改公开链上状态，就不需要使用 `final { }` 块。
+
+### `final fn`
+
+当 finalization logic（最终化逻辑）需要在多个入口函数中复用时，可以将它抽离为 `final fn`。
+
+`final fn` 声明在 `program {}` 块外部。调用 `final fn` 时，仍然必须在调用位置用 `final { }` 块包裹。
+
+```leo id="fn-final-fn"
+final fn decrement_balance(sender: address, amount: u64) {
+    let current_amount: u64 = Mapping::get_or_use(account, sender, 0u64);
+    Mapping::set(account, sender, current_amount - amount);
+}
+
+program transfer.aleo {
+    fn transfer_public_to_private(
+        receiver: address,
+        public amount: u64
+    ) -> (token, Final) {
+        let new: token = token {
+            owner: receiver,
+            amount,
+        };
+
+        return (new, final {
+            decrement_balance(self.caller, amount);
+        });
+    }
+
+    fn burn(public amount: u64) -> Final {
+        return final {
+            decrement_balance(self.caller, amount);
+        };
+    }
+}
+```
+
+`decrement_balance` 的函数体会在编译时被 inline（内联）到每个调用者的 `final { }` 块中；在编译后的输出中，不存在真正共享的函数。
+
+## Helper Function（辅助函数）
+
+Helper function（辅助函数）使用 `fn {name}({arguments}) {}` 的形式声明，并且必须写在 `program {}` 块外部。
+
+辅助函数可以包含用于计算值的 expressions（表达式）和 statements（语句），但不能产生 `records`。
+
+辅助函数不能从程序外部直接调用，而是由 entry functions（入口函数）调用。
+
+辅助函数的输入参数不能带 `{visibility}` 修饰符，因为它们只在内部使用，不属于程序的外部接口。
+
+```leo id="fn-helper"
+fn foo(
+    a: field,
+    b: field,
+) -> field {
+    return a + b;
+}
+```
+
+辅助函数也支持 const generics（常量泛型）：
+
+```leo id="fn-const-generics"
+fn sum_first_n_ints::[N: u32]() -> u32 {
+    let sum = 0u32;
+    for i in 0u32..N {
+        sum += i;
+    }
+    return sum;
+}
+
+program main.aleo {
+    fn main() -> u32 {
+        return sum_first_n_ints::[5u32]();
+    }
+}
+```
+
+const generic parameters（常量泛型参数）可以使用的类型包括 integer types（整数类型）、`bool`、`scalar`、`group`、`field` 和 `address`。
+
+### `@no_inline`
+
+默认情况下，编译器会 inline（内联）只被调用一次的辅助函数，以减少函数调用开销。
+
+如果想阻止这种行为，可以使用 `@no_inline` 标注函数：
+
+```leo id="fn-no-inline"
+@no_inline
+fn expensive_helper(a: u32, b: u32) -> u32 {
+    // ...
+    return a + b;
+}
+```
+
+当某个函数被有意设计为多个调用点共享，但编译器可能会重复复制它时，可以使用 `@no_inline`。
+
+此外，如果你希望在编译输出中保留函数边界，以增强可读性，也可以使用 `@no_inline`。
+
+## Function Call Rules（函数调用规则）
+
+- entry `fn` 可以调用：helper `fn`、`final fn`，以及 external entry `fn`。
+- helper `fn` 只能调用：其他 helper `fn`。
+- `final fn` 只能调用：其他 `final fn`。
+- 不允许递归调用，包括直接递归和间接递归。
