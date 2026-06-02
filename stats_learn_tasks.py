@@ -7,8 +7,7 @@ import re
 from pathlib import Path
 
 
-TASK_FILE_RE = re.compile(r"^task([1-4])(?:\.[^/]+)?$", re.IGNORECASE)
-TASK_DIR_RE = re.compile(r"^task([1-4])$", re.IGNORECASE)
+TASK_NAME_RE = re.compile(r"task[\s_-]*([1-4])", re.IGNORECASE)
 ALEO_ADDRESS_RE = re.compile(r"\baleo1[0-9a-z]{20,}\b", re.IGNORECASE)
 
 
@@ -48,7 +47,7 @@ def find_profile_md(folder: Path) -> Path | None:
     for child in folder.iterdir():
         if not child.is_file() or child.suffix.lower() != ".md":
             continue
-        if TASK_FILE_RE.match(child.name):
+        if TASK_NAME_RE.search(child.stem):
             continue
         candidates.append(child)
 
@@ -68,13 +67,13 @@ def collect_task_status(folder: Path) -> dict[int, bool]:
     status = {1: False, 2: False, 3: False, 4: False}
     for path in folder.rglob("*"):
         if path.is_file():
-            file_match = TASK_FILE_RE.match(path.name)
-            if file_match:
-                status[int(file_match.group(1))] = True
+            task_match = TASK_NAME_RE.search(path.stem)
+            if task_match:
+                status[int(task_match.group(1))] = True
         elif path.is_dir():
-            dir_match = TASK_DIR_RE.match(path.name)
-            if dir_match:
-                status[int(dir_match.group(1))] = True
+            task_match = TASK_NAME_RE.search(path.name)
+            if task_match:
+                status[int(task_match.group(1))] = True
     return status
 
 
