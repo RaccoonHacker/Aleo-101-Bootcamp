@@ -1,0 +1,6 @@
+- 昵称：codex-task4
+- GitHub 用户名：codex-task4
+- 微信：未填写
+- Aleo 钱包地址：aleo1lj2zs258vryvt853j3prn0gqxzch5v22u2a5md04zp7yvw8g5gpse6l8c6
+- 技术栈：Leo, JavaScript, HTML, CSS
+- 自我介绍：关注 Aleo 隐私应用开发，完成 Aleo 101 Bootcamp task1-task4。
