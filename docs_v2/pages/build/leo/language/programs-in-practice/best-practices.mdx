@@ -1,0 +1,338 @@
+---
+title: Best Practices
+---
+
+---
+
+# Best Practices
+
+本指南旨在帮助开发者在编写 Leo 代码时把握正确方向。Leo 语言及其生成的 circuit（电路）有许多独有的约定。
+
+本指南是一份持续更新的文档。随着新的 Leo 编程约定出现、旧的约定被淘汰，本指南也应及时反映这些变化。欢迎在[这里](#contributing)补充你的评论和建议。
+
+## Content（内容）
+
+### Conditional Branches（条件分支）
+
+Leo 编译器会将 offchain code（链下代码）中的 `if-else` 语句重写为一系列 ternary expressions（三元表达式）。这是因为底层的 circuit construction（电路构造）不支持真正的分支。
+
+如果希望精确控制 circuit size（电路规模），建议直接使用三元表达式。
+
+**If-Else:**
+
+```leo
+if (condition) {
+    return a;
+} else {
+    return b;
+}
+```
+
+**Ternary:**
+
+```leo
+return condition ? a : b;
+```
+
+#### Why?（为什么？）
+
+Ternary expressions（三元表达式）是成本最低的条件表达形式。我们可以在判断 `condition` 之前，先解析第一个表达式和第二个表达式的值。这很容易转换成 circuit（电路），因为每个表达式都不依赖后续语句中的信息。
+
+在原始 `Example` 中，我们不能在判断条件之前解析 `return` 语句。因此，Leo 会在 circuit 中创建分支，使两条路径都可以被求值。
+
+**branch 1, condition = true**
+
+```leo
+return a;
+```
+
+**branch 2, condition = false**
+
+```leo
+return b;
+```
+
+当在 proving time（证明生成时）获取输入值 `condition` 后，系统会选择 circuit 的一个分支进行求值。注意，`return a` 语句会在两个分支中重复出现。条件语句内部的每一次计算成本都会翻倍。这会显著增加 constraint numbers（约束数量），并拖慢 circuit。
+
+### `final fn` 与内联 `final` 块
+
+为了让代码更简洁、可读性更好，除非 finalization logic（最终化逻辑）需要在多个 entry points（入口函数）之间共享，否则应优先使用内联 `final { }` 块，而不是单独声明一个 `final fn`。
+
+**final fn（仅在多个入口函数共享逻辑时使用）：**
+
+```leo
+final fn increment_state(acc: u8) {
+    let current_count: u64 = accumulator.get_or_use(acc, 0u64);
+    let new_count: u64 = current_count + 1u64;
+    accumulator.set(acc, new_count);
+}
+
+program example.aleo {
+    mapping accumulator: u8 => u64;
+
+    fn increment_accumulator() -> Final {
+        return final {
+            increment_state(0u8);
+        };
+    }
+}
+```
+
+**Inline final block（单次使用逻辑时推荐）：**
+
+```leo
+program example.aleo {
+    mapping accumulator: u8 => u64;
+
+    fn increment_accumulator() -> Final {
+        return final {
+            let current_count: u64 = accumulator.get_or_use(0u8, 0u64);
+            let new_count: u64 = current_count + 1u64;
+            accumulator.set(0u8, new_count);
+        };
+    }
+}
+```
+
+### Libraries（库）
+
+[Libraries](/build/leo/language/project_layout/libraries)（库）适合用于在多个 program（程序）之间共享可复用代码。编写或使用 libraries 时，可以参考以下建议。
+
+#### 1. 将共享逻辑提取到 Library 中
+
+当相同的 helper functions（辅助函数）、constants（常量）或 `struct` 定义出现在多个 program 中时，应将它们移入 library。这样可以避免重复约束，也更便于维护。
+
+```text
+packages/
+├── math_utils/   ← shared library
+│   └── src/lib.leo
+├── token_a.aleo/
+│   └── src/main.leo
+└── token_b.aleo/
+    └── src/main.leo
+```
+
+#### 2. Libraries 是无状态的
+
+Libraries 应保持 **stateless（无状态）**：不包含 `program { }` 块，不包含 `mapping`，不包含 `record`，也不包含 entry functions（入口函数）。所有 state（状态）都应属于 program。如果你发现自己想在 library 中放置 on-chain state（链上状态），应将逻辑拆分为 helper library（辅助库）和一个轻量的 program wrapper（程序包装层）。
+
+#### 3. 优先使用 Library Functions，而不是复制逻辑
+
+如果在多个 program 中重复内联同一段多步骤计算，会让每个 circuit 的 constraint count（约束数量）都成倍增加。将这部分逻辑集中到 library function 中，可以让 constraint cost（约束成本）更清晰，也能让每个 program 更小。
+
+#### 4. 大型 Libraries 使用 Submodules
+
+当一个 library 超过几百行时，应按照职责将其拆分为 submodules（子模块），例如 `geometry.leo`、`encoding.leo` 等，并让 `lib.leo` 作为 public surface（公共接口层），用于重新导出常用内容。
+
+```text
+math_utils/
+├── src/
+│   ├── lib.leo        ← public API
+│   ├── geometry.leo   ← math_utils::geometry::*
+│   └── encoding.leo   ← math_utils::encoding::*
+```
+
+#### 5. Library 命名应清晰
+
+Library package names（库包名）与 program 一样遵循 snake_case 规则。尽量使用一个清晰的描述性名词，例如 `math`、`encoding`、`token_utils`。
+
+### Modules（模块）
+
+为了最大程度保持代码整洁和可读性，应充分利用 Leo 的 module system（模块系统）：
+
+```text
+src
+├── constants.leo
+├── utils.leo
+├── structs.leo
+└── main.leo
+```
+
+在上述结构中，可以考虑：
+
+- 将所有 `const` 移动到 `constants.leo` 模块；
+- 将所有 helper `fn` 函数移动到 `utils.leo` 模块；
+- 将部分 `struct` 移动到模块中，但这并不一定适用于所有情况。
+
+目标是让 `main.leo` 中只保留 program 的 interface（接口）。每个函数都应对应某种可以从外部上下文调用的内容，例如被另一个 program 调用。需要注意的是，这不会影响最终 program size（程序大小），因为 modules 最终都会被 flatten（展平）为一个 program。
+
+## Layout（布局）
+
+### Indentation（缩进）
+
+每一级缩进使用 4 个空格。
+
+### Blank lines（空行）
+
+在 `program` 作用域中，顶层声明之间应使用一个空行分隔，包括 `fn`、`record`、`mapping` 声明，以及模块级别的 `struct` 和 helper `fn` 声明。
+
+多个 import 之间可以选择用一个空行分隔；文件顶部最后一个 import 后应保留一个空行。
+
+**Yes:**
+
+```leo
+import std.io.Write;
+import std.math.Add;
+
+struct A {
+    // ...
+}
+
+fn foo() {
+    // ...
+}
+
+program prog.aleo {
+    // ...
+}
+```
+
+**No:**
+
+```leo
+import std.io.Write;
+
+
+import std.math.Add;
+program prog.aleo {
+    struct A {
+        // ...
+    }
+    fn foo() {
+        // ...
+    }
+}
+```
+
+### Naming Conventions（命名约定）
+
+| Item                      | Convention                     |
+| ------------------------- | ------------------------------ |
+| Packages                  | snake_case，但优先使用单个单词 |
+| Structs and Records       | CamelCase                      |
+| Struct and Record Members | snake_case                     |
+| Functions                 | snake_case                     |
+| Function Parameters       | snake_case                     |
+| Variables                 | snake_case                     |
+| Inputs                    | snake_case                     |
+
+### Layout（文件元素顺序）
+
+Leo 文件中的元素应按以下顺序排列：
+
+1. Imports
+2. Constants + Structs（模块级别）
+3. Helper `fn` 和 `final fn` 定义
+4. Program declaration
+5. Mappings + Records
+6. Entry point `fn` declarations
+
+### Braces（花括号）
+
+左花括号始终放在同一行。
+
+```leo
+struct A {
+    // ...
+}
+
+fn main() {
+    // ...
+}
+
+let a: A = A { };
+```
+
+### Semicolons（分号）
+
+每条语句，包括 `return` 语句，都应以分号结尾。
+
+```leo
+let a: u32 = 1u32;
+let b: u32 = a + 5u32;
+b *= 2u32;
+
+return b;
+```
+
+### Commas（逗号）
+
+当右侧闭合符号单独位于一行时，应添加 trailing comma（尾随逗号）。
+
+```leo
+let a: A = A { x: 0, y: 1 };
+
+let a: A = A {
+    x: 0,
+    y: 1,
+};
+```
+
+## Contributing（贡献）
+
+感谢你帮助 Leo 变得更好！
+
+在贡献之前，请先阅读 [Contributor Code of Conduct](https://github.com/ProvableHQ/leo/blob/mainnet/CONTRIBUTING.md)。只要你参与本项目，包括 issues、pull requests 或 Gitter channels，就表示你同意遵守其中的条款。
+
+### Report an Issue（报告问题）
+
+如需报告问题，请使用 [GitHub issues tracker](https://github.com/ProvableHQ/leo/issues)。报告问题时，请说明以下信息：
+
+- 你使用的 Leo 版本；
+- 源代码是什么，如适用；
+- 你运行的平台；
+- 如何复现该问题；
+- 问题实际产生的结果；
+- 你期望的行为是什么。
+
+将导致问题的源代码缩减到最小示例通常非常有帮助，有时也能澄清误解。
+
+### Make a Pull Request（提交 Pull Request）
+
+请从 `mainnet` 分支 fork 后开始修改。Commit messages（提交信息）应清楚说明你为什么修改，以及修改了什么。
+
+如果在 fork 之后需要拉取 `mainnet` 分支上的更新，例如为了解决潜在的 merge conflicts（合并冲突），请避免使用 `git merge`，而应使用 `git rebase`。Rebase 可以帮助维护者更轻松地审查你的修改。
+
+#### Tools Required（所需工具）
+
+如果要从源码构建 Leo，需要以下工具：
+
+- 最新的 Rust stable version 和 nightly version。
+  - 推荐使用 `rustup` 安装多个版本。
+- Cargo
+  - 通过 `cargo install rusty-hook` 安装 Rusty Hook。
+- Clippy
+  - 如果你没有使用默认 rustup 安装方式，可以通过 `rustup component add clippy` 安装。
+
+#### Formatting（格式化）
+
+在提交 PR 之前，请执行以下操作：
+
+- `cargo +nightly fmt --all` 会格式化全部代码。
+- `cargo clippy --all-features --examples --all --benches`
+
+#### Tests（测试）
+
+如果你的代码添加了新功能，请编写测试以确认新功能符合预期。可以参考现有测试，了解测试应如何编写。另请参考下方 [Parser Tests](#parser-tests) 部分。运行测试请使用以下命令：
+
+```bash
+cargo test --all --features ci_skip --no-fail-fast
+```
+
+##### **Parser Tests**
+
+在仓库根目录中有一个 `tests` 目录。
+
+如果要添加 parser test（解析器测试），请查看 parser 子目录中的 Leo 示例文件。随后在运行测试命令时，确保环境变量 `CLEAR_LEO_TEST_EXPECTATIONS` 设置为 true。例如，在 UNIX 环境中，可以运行：
+
+```bash
+CLEAR_LEO_TEST_EXPECTATIONS=true cargo test --all --features ci_skip --no-fail-fast
+```
+
+#### Grammar（语法）
+
+[`grammars` repository](https://github.com/ProvableHQ/grammars) 中包含一个 [`leo.abnf`](https://github.com/ProvableHQ/grammars/blob/master/leo.abnf) 文件，其中以 ABNF 格式定义了 Leo grammar rules（语法规则）。
+
+如果你的修改影响了某条语法规则，维护者可能会要求你同步修改该 `.abnf` 文件。
+
+感谢你的努力！

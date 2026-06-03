@@ -1,0 +1,282 @@
+---
+title: Interfaces
+---
+
+# Interfaces and Dynamic Dispatch（接口与动态分发）
+
+Leo 提供了三个相关特性，用于构建可组合、通用化的程序：
+
+- **Interfaces（接口）**：声明一个具名的 contract structure（合约结构），程序必须满足其中定义的要求。
+- **Dynamic Calls（动态调用）**：调用一个在运行时才确定的程序。
+- **Dynamic Records（动态记录）**：传递和检查在编译时结构未知的 records。
+
+## Interfaces（接口）
+
+`interface` 声明用于指定一组函数、records、mappings 和 storage variables，程序必须提供这些内容。
+
+Interfaces 是一种 compile-time concept（编译期概念），不会影响最终生成的 bytecode。它们主要用于强制结构约束：确保任何声称实现某个 interface 的程序，确实提供了该 interface 要求的所有函数、records、mappings 和 storage variables。
+
+Interfaces 也用于支持 dynamic calls。调用者只需要知道自己可以调用“什么”，不需要在编译时知道运行时具体调用“哪个”程序。
+
+Interfaces 可以声明在 `program {}` 块外部，也可以声明在 submodule 中。
+
+```leo
+interface Transfer {
+    record Token;
+    fn transfer(input: Token, to: address, amount: u64) -> Token;
+}
+```
+
+### Implementation（实现）
+
+一个程序可以通过在 program declaration（程序声明）中使用 `:` 列出 interface，来表示自己实现该 interface。
+
+编译器会检查该程序是否提供了 interface 要求的全部内容。
+
+```leo
+program my_token.aleo : Transfer {
+    mapping balances: address => u64;
+
+    record Token {
+        owner: address,
+        balance: u64,
+    }
+
+    fn transfer(input: Token, to: address, amount: u64) -> Token {
+        return Token { owner: to, balance: input.balance - amount };
+    }
+}
+```
+
+### Composition（组合）
+
+一个程序可以使用 `+` 同时实现多个 interfaces：
+
+```leo
+interface Transfer {
+    record Token;
+    fn transfer(input: Token, to: address, amount: u64) -> Token;
+}
+
+interface Pausable {
+    mapping paused: address => bool;
+    fn pause() -> bool;
+}
+
+// my_token.aleo must satisfy both Transfer and Pausable
+program my_token.aleo : Transfer + Pausable {
+    mapping paused: address => bool;
+
+    record Token {
+        owner: address,
+        balance: u64,
+    }
+
+    fn transfer(input: Token, to: address, amount: u64) -> Token {
+        return Token { owner: to, balance: input.balance - amount };
+    }
+
+    async fn pause() -> (bool, Future) {
+        let f: Future = finalize_pause(self.caller);
+        return (true, f);
+    }
+
+    async function finalize_pause(caller: address) {
+        Mapping::set(paused, caller, true);
+    }
+}
+```
+
+### Inheritance（继承）
+
+Interfaces 可以使用 `:` 从其他 interfaces 继承：
+
+```leo
+interface Base {
+    fn get_value() -> u64;
+}
+
+interface Extended : Base {
+    fn set_value(v: u64) -> u64;
+}
+```
+
+### Record Requirements（Record 要求）
+
+Interface 可以要求实现方必须存在某个指定名称的 record：
+
+```leo
+interface Foo {
+    record Bar; // programs implementing Foo must declare a record called Bar
+}
+```
+
+Interface 也可以要求该 record 具有特定字段。
+
+可以使用 `..` 表示实现方除了这些必需字段外，还可以声明更多字段：
+
+```leo
+interface Foo {
+    record Bar {
+        owner: address, // all records must have an owner field
+        baz: u64,       // Bar must also have a baz field of type u64
+        ..              // implementors may add more fields
+    }
+}
+```
+
+## Dynamic Calls（动态调用）
+
+Static calls（静态调用）要求被调用的程序在编译时已经确定：
+
+```leo
+// Static: the callee is fixed at compile time
+fn route_transfer_static(to: address, amount: u64) {
+    return token_a.aleo::transfer(to, amount);
+}
+```
+
+Dynamic calls（动态调用）允许被调用程序在运行时确定。
+
+调用者仍然知道自己可以调用“什么”——这通过 interface 表达；但调用者不需要知道运行时具体调用“哪个”程序。
+
+```leo
+// Dynamic: any program that implements TokenStandard can be called
+fn route_transfer_dynamic(token_program: identifier, to: address, amount: u64) {
+    return token_a.aleo::TokenStandard@(token_program)::transfer_public(to, amount);
+}
+```
+
+语法如下：
+
+```text
+qualifier.aleo::Interface@(target)::method(args)
+```
+
+其中：
+
+- `qualifier.aleo` 是声明或重新导出该 interface 的 imported program。它必须是 static import。
+- `Interface` 是 interface 名称。
+- `target` 是运行时解析的 `identifier` 值，也就是要调用的程序名称。
+- `method` 是要调用的函数。
+
+### Identifiers（标识符）
+
+`identifier` 类型表示一个在运行时解析的 program name（程序名称）。
+
+`identifier` literal 使用单引号语法：
+
+```leo
+let target: identifier = 'my_program';
+return token_a.aleo::TokenStandard@(target)::transfer_public(to, amount);
+```
+
+默认情况下，target 会在 `aleo` network 上查找。
+
+如果要显式指定其他 network，可以把第二个 `identifier` 作为第二个参数传入：
+
+```leo
+let target: identifier = 'my_program';
+let network: identifier = 'aleo';
+return token_a.aleo::TokenStandard@(target, network)::transfer_public(to, amount);
+```
+
+注意：目前唯一有效的 network identifier 是 `aleo`。
+
+## Dynamic Records（动态记录）
+
+`dyn record` 是一种 record，其字段结构在编译时未知。它保留普通 record 的所有 ownership（所有权）和 privacy（隐私）属性：
+
+```leo
+fn get_memo(rec: dyn record) -> u64 {
+    return rec.memo; // fails at runtime if `rec` does not have a field named `memo` of type `u64`
+}
+```
+
+`dyn record` 与 dynamic calls 相互补充：
+
+dynamic calls 允许程序把逻辑路由到任何符合 interface 的被调用方；而 `dyn record` 允许同一个程序接收、检查和转发来自编译时未知程序的 records，同时不丢失类型系统的安全保证。
+
+### Dynamic Records in Dynamic Calls（动态调用中的动态记录）
+
+无论 interface signature（接口签名）中写的是什么，dynamic calls 总是以 dynamic records 作为输入，并以 dynamic records 作为输出。
+
+进行 dynamic call 时，所有 record arguments 都会在底层被视为 `dyn record`，所有 record return values 也都会作为 `dyn record` 返回。即使 interface 使用的是具体的 static record type，底层也是如此。
+
+根据 interface 声明和调用者提供的类型不同，可以分为以下四种情况。
+
+**Case A — Interface 需要 `dyn record`，调用者也有 `dyn record`**
+
+这种情况下，可以直接传入 dynamic record，不需要转换。
+
+```leo
+interface ARC20 {
+    fn transfer_private(token: dyn record, to: address) -> dyn record;
+}
+
+program caller.aleo {
+    fn main(target: identifier, token: dyn record, to: address) -> dyn record {
+        return ARC20@(target)::transfer_private(token, to); // direct pass-through
+    }
+}
+```
+
+**Case B — Interface 需要 `dyn record`，调用者有 static record**
+
+这种情况下，需要先使用 `as` 将 static record 显式转换为 `dyn record`，再传入。
+
+```leo
+interface ARC20 {
+    fn transfer_private(token: dyn record, to: address) -> dyn record;
+}
+
+program my_token.aleo : ARC20 {
+    record Token { owner: address, amount: u64 }
+
+    fn do_transfer(target: identifier, token: Token, to: address) -> dyn record {
+        return ARC20@(target)::transfer_private(token as dyn record, to); // explicit cast
+    }
+}
+```
+
+**Case C — Interface 需要 static record，调用者也有 static record**
+
+Leo 会在调用位置自动将 static record 隐式转换为 `dyn record`。
+
+调用者不需要额外操作，但底层会发生一个 implicit unsafe step（隐式的不安全步骤）。
+
+```leo
+interface ARC20 {
+    record Token;
+    fn transfer_private(token: Token, to: address) -> Token;
+}
+
+program caller.aleo {
+    record Token { owner: address, amount: u64 }
+
+    fn main(target: identifier, token: Token, to: address) -> dyn record {
+        return ARC20@(target)::transfer_private(token, to); // implicit conversion under the hood
+    }
+}
+```
+
+**Case D — Interface 需要 static record，调用者有 `dyn record`**
+
+Leo 会在调用位置把 dynamic record 隐式转换为 interface 所期望的 static type。
+
+返回值仍然是 `dyn record`。
+
+```leo
+interface ARC20 {
+    record Token;
+    fn transfer_private(token: Token, to: address) -> Token;
+}
+
+program caller.aleo {
+    fn main(target: identifier, token: dyn record, to: address) -> dyn record {
+        return ARC20@(target)::transfer_private(token, to); // implicit cast, returns dyn record
+    }
+}
+```
+
+在以上四种情况中，只要 dynamic call 涉及 records，无论 interface 中声明的返回类型是什么，最终返回类型始终都是 `dyn record`。
