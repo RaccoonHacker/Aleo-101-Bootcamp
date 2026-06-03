@@ -2,6 +2,230 @@
 title: Deploy
 ---
 
-# Deploy
+# `leo deploy`
 
-TODO: Add Leo CLI deploy content.
+:::note
+此命令需要一个已充值的账户。
+:::
+
+要部署当前工作目录中的项目，运行以下命令：
+
+```bash
+leo deploy # 默认使用 .env 文件或环境变量中的私钥、网络和端点配置
+```
+
+```bash title="示例输出："
+       Leo     ... statements before dead code elimination.
+       Leo     ... statements after dead code elimination.
+       Leo     The program checksum is: '[...]'.
+       Leo ✅ Compiled '{PROGRAM_NAME}.aleo' into Aleo instructions.
+
+📢 Using the following consensus heights: 0,2950000,4800000,6625000,6765000,7600000,8365000,9173000,9800000
+  To override, pass in `--consensus-heights` or override the environment variable `CONSENSUS_VERSION_HEIGHTS`.
+
+Attempting to determine the consensus version from the latest block height at {ENDPOINT}...
+
+🛠️  Deployment Plan Summary
+──────────────────────────────────────────────
+🔧 Configuration:
+  Private Key:        {PRIVATE_KEY}
+  Address:            {ADDRESS}
+  Endpoint:           {ENDPOINT}
+  Network:            {NETWORK}
+  Consensus Version:  {CONSENSUS_VERSION}
+
+📦 Deployment Tasks:
+  • {PROGRAM_NAME}.aleo  │ priority fee: 0  │ fee record: no (public fee)
+
+⚙️ Actions:
+  • Transaction(s) will NOT be printed to the console.
+  • Transaction(s) will NOT be saved to a file.
+  • Transaction(s) will be broadcast to {ENDPOINT}
+
+🔧 Your program '{PROGRAM_NAME}.aleo' has the following constructor.
+──────────────────────────────────────────────
+constructor:
+    ...
+──────────────────────────────────────────────
+Once it is deployed, it CANNOT be changed.
+
+📦 Creating deployment transaction for '{PROGRAM_NAME}.aleo'...
+
+
+📊 Deployment Summary for '{PROGRAM_NAME}.aleo'
+──────────────────────────────────────────────
+  Total Variables:      ...
+  Total Constraints:    ...
+  Max Variables:        2,097,152
+  Max Constraints:      2,097,152
+
+💰 Cost Breakdown (credits)
+  Transaction Storage:  ...
+  Program Synthesis:    ...
+  Namespace:            ...
+  Constructor:          ...
+  Priority Fee:         ...
+  Total Fee:            ...
+──────────────────────────────────────────────
+```
+
+详细信息请参阅 **[部署指南](../guides/deploying.mdx)**。
+
+## JSON 输出
+
+使用 `--json-output` 可将结构化 JSON 结果保存到磁盘，以便程序化调用：
+
+```bash
+# 保存至默认路径（build/json-outputs/deploy.json）
+leo deploy --json-output -y
+
+# 保存至自定义路径
+leo deploy --json-output=deployment_result.json -y
+```
+
+示例输出（`build/json-outputs/deploy.json`）：
+
+```json
+{
+  "deployments": [
+    {
+      "program_id": "my_program.aleo",
+      "transaction_id": "at1..."
+    }
+  ]
+}
+```
+
+此功能适用于脚本自动化和 CI/CD 流水线：
+
+```bash
+# 部署后提取交易 ID
+jq '.deployments[0].transaction_id' build/json-outputs/deploy.json
+```
+
+## 参数说明
+
+### `--private-key <PRIVATE_KEY>`
+
+指定用于部署的私钥。覆盖手动设置或 `.env` 文件中的 `$PRIVATE_KEY` 环境变量。
+
+### `--network <NETWORK>`
+
+指定部署目标网络。覆盖手动设置或 `.env` 文件中的 `NETWORK` 环境变量。有效的网络名称为 `testnet`、`mainnet` 和 `canary`。
+
+### `--endpoint <ENDPOINT>`
+
+部署目标端点。覆盖手动设置或 `.env` 文件中的 `ENDPOINT` 环境变量。
+
+**常用端点：**
+
+<!-- markdown-link-check-disable -->
+
+|      网络      |                   端点                   |
+| :------------: | :--------------------------------------: |
+| 开发网（本地） |        <https://localhost:3030>          |
+|    测试网      | <https://api.explorer.provable.com/v1>   |
+|    主网        | <https://api.explorer.provable.com/v1>   |
+
+<!-- markdown-link-check-enable -->
+
+### `--devnet`
+
+指定部署目标是否为开发网（Devnet）。若未设置，则使用 `DEVNET` 环境变量的值。
+
+:::info
+此参数要求本地已有开发网在运行。详情请参阅 **[开发网指南](../guides/devnet.mdx)**。
+:::
+
+### `--print`
+
+以 JSON 格式将交易打印到终端/标准输出。
+
+### `--broadcast`
+
+执行成功后将交易广播至网络。若不传此参数，交易仅在本地生成，不会广播。
+
+### `--save <SAVE>`
+
+将交易保存到 `<SAVE>` 路径所指定的目录。
+
+### `--skip <SUBSTRING_0> <SUBSTRING_1> ...`
+
+跳过名称中包含指定子字符串的程序的部署，多个子字符串以空格分隔。
+
+### `--yes`
+
+### `-y`
+
+CLI 在部署过程中会在若干步骤请求手动确认。设置此参数后，所有确认将自动同意。
+
+:::warning
+除非您清楚自己在做什么，否则请勿使用此参数！
+:::
+
+### `--priority-fees <PRIORITY_FEES>`
+
+指定部署交易的优先费用，以 `|` 分隔并按顺序使用。费用单位为微积分（microcredits），值必须为有效的 `u64` 整数或 `default`。默认为 0。
+
+:::tip
+1 积分（Credit）== 1,000,000 微积分（Microcredits）
+:::
+
+### `--fee-records <FEE_RECORDS>`
+
+### `-f <FEE_RECORDS>`
+
+指定用于私密支付手续费的记录（Record），以 `|` 分隔并按顺序使用。费用记录必须为有效的明文、密文或 `default`。若未指定，则手续费将以公开方式支付。
+
+### `--consensus-heights <CONSENSUS_HEIGHTS>`
+
+指定共识高度，以 `,` 分隔。仅在使用自定义开发网时设置此参数。
+
+以下配置表示在区块 0 启用 Consensus_V0，在区块 1 启用 Consensus_V1，以此类推：
+
+```bash
+--consensus-heights 0,1,2,3....
+```
+
+### `--consensus-version <CONSENSUS_VERSION>`
+
+指定要使用的共识版本。若未提供，CLI 将尝试从最新区块自动推断。
+
+### `--max-wait <MAX_WAIT>`
+
+指定搜索交易时等待区块出现的最长秒数。默认为 8 秒。
+
+### `--blocks-to-check <BLOCKS_TO_CHECK>`
+
+指定搜索交易时检查的区块数量。默认为 12 个区块。
+
+```text
+选项：
+--base-fees <BASE_FEES>
+  [未使用] 基础费用，单位为微积分，以 `|` 分隔并按顺序使用。值必须为有效的 `u64` 整数或 `default`。默认自动计算。
+--skip <SKIP>...
+  跳过名称中包含指定子字符串的程序的部署。
+--offline
+    启用离线模式。
+--enable-ast-spans
+    在 AST 快照中启用 span 信息。
+--enable-dce
+    在编译器中启用死代码消除（Dead Code Elimination）。
+--conditional-block-max-depth <CONDITIONAL_BLOCK_MAX_DEPTH>
+    对嵌套条件语句进行类型检查的最大深度。[默认值：10]
+--disable-conditional-branch-type-checking
+    在 finalize 作用域内禁用嵌套条件分支的类型检查。
+--enable-initial-ast-snapshot
+    在解析完成后立即写入 AST 快照。
+--enable-all-ast-snapshots
+    为不同编译阶段写入所有 AST 快照。
+--ast-snapshots <AST_SNAPSHOTS>...
+    以逗号分隔的编译阶段列表，用于捕获各阶段的 AST 快照。
+--build-tests
+    在构建主程序和依赖项的同时构建测试。
+--no-cache
+    不使用依赖项缓存。
+--no-local
+    不使用本地源代码。
+```
+

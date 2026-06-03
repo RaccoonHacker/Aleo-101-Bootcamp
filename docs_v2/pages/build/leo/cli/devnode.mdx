@@ -2,6 +2,167 @@
 title: Devnode
 ---
 
-# Devnode
+# `leo devnode`
 
-TODO: Add Leo CLI devnode content.
+开发节点（Devnode）是一种轻量级节点网络，它绕过了共识算法，以及部署和执行交易时对零知识证明生成的要求。它是一种开发工具，专为快速迭代 Aleo 程序设计，以及在将 Aleo 程序部署到测试网和主网之前进行端到端测试而设计。
+
+要初始化开发节点，运行以下命令：
+
+```bash
+leo devnode start --private-key <PRIVATE_KEY>
+```
+按 `Ctrl+C` 停止开发节点。若启动时指定了 `--storage`，账本状态将被持久化保存，再次运行相同命令即可恢复。若启动时未指定 `--storage`，开发节点退出后账本数据将被丢弃。
+
+<!-- markdown-link-check-disable -->
+
+:::info
+本地开发节点的默认端点为 `http://localhost:3030`。
+:::
+
+<!-- markdown-link-check-enable -->
+
+## `leo devnode start`
+---
+
+```bash
+leo devnode start [OPTIONS]
+```
+### 参数说明
+
+#### `--private-key <PRIVATE_KEY>`   
+   
+#### `-p <PRIVATE_KEY>`   
+   
+指定用于开发节点的私钥。覆盖手动设置或在 `.env` 文件中设置的任何 `$PRIVATE_KEY` 环境变量。
+
+#### `--verbosity <VERBOSITY>`   
+   
+#### `-v <VERBOSITY>`   
+   
+设置日志详细程度。有效值为 0（静默），1（最小），2（详细）。默认为 2。
+
+#### `--socket-addr <SOCKET_ADDR>`   
+   
+#### `-a <SOCKET_ADDR>`   
+   
+设置REST API的地址和端口。默认为`127.0.0.1:3030`。
+
+#### `--genesis-path <GENESIS_PATH>`   
+   
+#### `-g <GENESIS_PATH>`   
+   
+自定义创世区块文件的路径。如果未指定，则使用内置的创世区块。
+
+#### `--manual-block-creation`   
+   
+#### `-m`   
+   
+禁用广播后的自动区块创建。区块只有在通过 `leo devnode advance` 明确请求时才会推进。
+
+#### `--ledger-path <LEDGER_PATH>`   
+   
+#### `-l <LEDGER_PATH>`   
+   
+用于持久化账本存储的目录。如果给出 `-l` 而没有路径，则默认为 `./devnode/`。如果没有指定，账本将保存在内存中，并在开发节点退出时被丢弃。
+
+#### `--clean`   
+   
+#### `-c`   
+   
+在启动前清除账本目录。需要 `--ledger-path`。
+
+### **示例**
+
+```bash
+# 内存模式（临时，不持久化）
+leo devnode start --private-key APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH
+
+# 持久化模式，使用默认目录（./devnode/）
+leo devnode start -s
+
+# 持久化模式，使用自定义目录
+leo devnode start -s ./my-ledger
+
+# 全新启动 —— 启动前清空现有账本
+leo devnode start -s -c
+leo devnode start -s ./my-ledger -c
+
+# 手动出块模式（区块仅在明确请求时才推进）
+leo devnode start --private-key APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH -m
+```
+
+## `leo devnode advance`
+---
+
+手动推进账本，创建新区块。适用于以 `--manual-block-creation` 模式运行时。
+
+```bash
+leo devnode advance [NUM_BLOCKS] [OPTIONS]
+```
+
+### 参数说明
+
+#### `NUM_BLOCKS`
+
+创建块的数量。默认为1。
+
+#### `--socket-addr`
+
+正在运行的开发节点的地址。默认为 `127.0.0.1:3030`。
+
+### **示例**
+
+```bash
+# 推进 1 个区块
+leo devnode advance
+
+# 推进 10 个区块
+leo devnode advance 10
+
+# 对非默认地址的开发节点执行推进
+leo devnode advance 5 --socket-addr 127.0.0.1:4040
+```
+
+## 跳过证明生成
+---
+
+在针对开发节点进行开发时，可跳过两个证明生成步骤以加快迭代速度。由于开发节点不验证零知识证明，生成它们属于不必要的性能开销。
+
+### **部署程序**
+
+```bash
+leo deploy --skip-deploy-certificate --endpoint http://localhost:3030
+```
+
+`--skip-deploy-certificate` 跳过部署证明的生成。不传此参数时部署仍可正常进行，但速度会明显变慢。
+
+### **执行转换**
+
+```bash
+leo execute <TRANSITION> <INPUTS> --skip-execute-proof --endpoint http://localhost:3030
+```
+
+`--skip-execute-proof` 跳过执行证明的生成。不传此参数时执行仍可正常进行，但速度会明显变慢。
+
+### **升级程序**
+
+```bash
+leo upgrade --skip-deploy-certificate --endpoint http://localhost:3030
+```
+
+## 典型工作流程
+
+```bash
+# 1. 启动持久化开发节点
+leo devnode start --private-key APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH -s
+
+# 2. 部署程序（在另一个终端窗口中，从 Leo 项目目录运行）
+leo deploy --skip-deploy-certificate --endpoint http://localhost:3030
+
+# 3. 执行转换
+leo execute <TRANSITION> <INPUTS> --skip-execute-proof --endpoint http://localhost:3030
+
+# 4. 需要时重置并全新启动
+leo devnode start --private-key APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH -s -c
+```
+
