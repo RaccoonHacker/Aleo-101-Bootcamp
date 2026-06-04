@@ -2,6 +2,93 @@
 title: Devnet
 ---
 
-# Devnet
+# `leo devnet`
 
-TODO: Add Leo CLI devnet content.
+要初始化本地开发网，运行以下命令：
+
+```bash
+leo devnet --snarkos <SNARKOS>
+```
+
+其中 `<SNARKOS>` 应为已安装的 snarkOS 二进制文件的路径。
+
+如果尚未安装 snarkOS，可以传入 `--install` 参数，CLI 将在上述路径自动安装该二进制文件。
+
+<!-- markdown-link-check-disable -->
+
+:::info
+本地开发网的默认端点（ENDPOINT）为 `http://localhost:3030`
+:::
+
+<!-- markdown-link-check-enable -->
+
+## 参数说明
+
+### `--snarkos <SNARKOS>`
+
+指定已安装的 snarkOS 二进制文件的路径。
+
+:::info
+此参数为必填项！
+:::
+
+### `--snarkos-features <FEATURES>`
+
+指定要使用的 snarkOS 功能特性（例如 `test_network`）。
+
+### `--install`
+
+在 `--snarkos` 指定路径安装（或重新安装）snarkOS，并应用 `--snarkos-features` 所指定的功能特性。
+
+<!-- markdown-link-check-disable -->
+
+### `--snarkos-version <SNARKOS_VERSION>`
+
+指定要使用或安装的 snarkOS 版本。默认使用 [crates.io](https://crates.io/crates/snarkos) 上的最新版本。
+
+<!-- markdown-link-check-enable -->
+
+### `--consensus-heights <CONSENSUS_HEIGHTS>`
+
+可选参数，指定各次共识升级所对应的区块高度。使用此参数时，还需启用 `--snarkos-features test_network`。
+
+以下配置表示在区块 0 启用 Consensus_V0，在区块 1 启用 Consensus_V1，以此类推：
+
+```bash
+--consensus-heights 0,1,2,3....
+```
+
+### `--storage <STORAGE>`
+
+snarkOS 账本（Ledger）和日志的根目录路径。默认为 `./`。
+
+### `--clear-storage`
+
+在启动开发网前清除现有的 snarkOS 账本数据。
+
+### `--network <NETWORK_ID>`
+
+指定开发网的网络 ID。
+
+| ID  |       网络        |
+| :-: | :---------------: |
+|  0  |      主网         |
+|  1  | 测试网（默认）    |
+|  2  |    金丝雀网       |
+
+### `--tmux`
+
+在 tmux 中运行开发网节点（仅适用于 Unix 系统）。
+
+### `--num-validators <NUM_VALIDATORS>`
+
+snarkOS 中使用的验证者节点数量。默认为 4。
+
+### `--num-clients <NUM_CLIENTS>`
+
+snarkOS 中使用的客户端节点数量。默认为 2。
+
+### `--verbosity <VERBOSITY>`
+
+指定 snarkOS 的日志详细程度（0-4）。默认为 1。
+
